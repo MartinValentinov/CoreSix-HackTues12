@@ -225,6 +225,44 @@ button {
   margin-bottom: 20px;
 }
 
+.profile-view {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+.profile-view h3 {
+  margin: 0 0 8px;
+}
+
+.profile-view .back-btn {
+  margin-bottom: 10px;
+  background: #e5e7eb;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.profile-view .back-btn:hover {
+  background: #dbeafe;
+}
+
+.profile-link,
+.comment-author {
+  color: #4338ca;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.profile-link:hover,
+.comment-author:hover {
+  color: #312e81;
+}
+
 /* Welcome */
 .welcome-card {
   background: linear-gradient(135deg, #6366f1, #4f46e5);

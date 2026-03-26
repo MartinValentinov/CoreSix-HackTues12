@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("home");
   const [darkMode, setDarkMode] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState(null);
 
   useEffect(() => {
     document.body.classList.toggle("dark-theme", darkMode);
@@ -70,7 +71,7 @@ export default function Dashboard() {
       content: "Today I managed to walk 5 minutes without pain! ",
       likes: 3,
       liked: false,
-      comments: ["Amazing progress!"],
+      comments: [{ user: "Anna K.", text: "Amazing progress!" }],
     },
     {
       id: 2,
@@ -79,7 +80,7 @@ export default function Dashboard() {
       content: "Adaptive exercises are changing my life.",
       likes: 5,
       liked: false,
-      comments: ["So inspiring!"],
+      comments: [{ user: "Michael B.", text: "So inspiring!" }],
     },
     {
       id: 3,
@@ -106,7 +107,7 @@ export default function Dashboard() {
       content: "Grateful for this community 🙏",
       likes: 7,
       liked: false,
-      comments: ["Same here!"],
+      comments: [{ user: "Anna K.", text: "Same here!" }],
     },
     {
       id: 6,
@@ -161,19 +162,116 @@ export default function Dashboard() {
   };
 
   const handleAddComment = (postId) => {
-    const comment = (commentInputs[postId] || "").trim();
-    if (!comment) return;
+    const commentText = (commentInputs[postId] || "").trim();
+    if (!commentText) return;
+
+    const commentPayload = {
+      user: user?.username || "Unknown",
+      text: commentText,
+    };
 
     setFeed((prev) =>
       prev.map((post) =>
         post.id === postId
-          ? { ...post, comments: [...post.comments, comment] }
+          ? { ...post, comments: [...post.comments, commentPayload] }
           : post
       )
     );
 
     setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
   };
+
+  const profilePosts = selectedProfile
+    ? feed.filter((post) => post.user === selectedProfile)
+    : [];
+
+  const profileCommentEntries = selectedProfile
+    ? feed
+        .flatMap((post) =>
+          post.comments
+            .filter((comment) => comment.user === selectedProfile)
+            .map((comment) => ({
+              postId: post.id,
+              postUser: post.user,
+              text: comment.text,
+            }))
+        )
+    : [];
+
+  const renderFeedCard = (post) => (
+    <div className="feed-card" key={post.id}>
+      <div className="feed-header">
+        <img
+          className="mini-avatar"
+          src={post.avatar || defaultAvatar}
+          alt={post.user}
+        />
+        <div>
+          <strong
+            className="profile-link"
+            onClick={() => setSelectedProfile(post.user)}
+          >
+            {post.user}
+          </strong>
+          <div className="post-time">{post.time}</div>
+        </div>
+      </div>
+      <p>{post.content}</p>
+      <div className="feed-meta">
+        <span>{post.likes} likes</span>
+        <span>{post.comments.length} comments</span>
+      </div>
+      <div className="feed-actions">
+        <button
+          className="action-btn"
+          onClick={() => handleLike(post.id)}
+        >
+          {post.liked ? "❤️ Liked" : "🤍 Like"}
+        </button>
+        <button
+          className="action-btn"
+          onClick={() => {
+            const current = commentInputs[post.id] || "";
+            const next = current.trim();
+            if (next) {
+              handleAddComment(post.id);
+            }
+          }}
+        >
+          💬 Add Comment
+        </button>
+      </div>
+      <div className="comment-box">
+        <input
+          type="text"
+          placeholder="Write a comment..."
+          value={commentInputs[post.id] || ""}
+          onChange={(e) =>
+            handleCommentInputChange(post.id, e.target.value)
+          }
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleAddComment(post.id);
+            }
+          }}
+        />
+      </div>
+      <div className="comment-list">
+        {post.comments.map((comment, idx) => (
+          <div className="comment-item" key={idx}>
+            💬
+            <strong
+              className="comment-author"
+              onClick={() => setSelectedProfile(comment.user)}
+            >
+              {comment.user}
+            </strong>
+            : {comment.text}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
   <div className="dashboard-layout">
@@ -243,69 +341,37 @@ export default function Dashboard() {
             </button>
           </div>
 
-          <div className="feed">
-            {feed.map((post) => (
-              <div className="feed-card" key={post.id}>
-                <div className="feed-header">
-                  <img
-                    className="mini-avatar"
-                    src={post.avatar || defaultAvatar}
-                    alt={post.user}
-                  />
-                  <div>
-                    <strong>{post.user}</strong>
-                    <div className="post-time">{post.time}</div>
-                  </div>
+          {selectedProfile && (
+            <div className="profile-view">
+              <button className="back-btn" onClick={() => setSelectedProfile(null)}>
+                ← Back to community
+              </button>
+              <h3>{selectedProfile}'s profile</h3>
+              <p>{profilePosts.length} post(s) authored</p>
+              <p>{profileCommentEntries.length} comment(s) added</p>
+
+              {profilePosts.length > 0 && (
+                <div>
+                  <h4>Author posts</h4>
+                  {profilePosts.map((post) => renderFeedCard(post))}
                 </div>
-                <p>{post.content}</p>
-                <div className="feed-meta">
-                  <span>{post.likes} likes</span>
-                  <span>{post.comments.length} comments</span>
-                </div>
-                <div className="feed-actions">
-                  <button
-                    className="action-btn"
-                    onClick={() => handleLike(post.id)}
-                  >
-                    {post.liked ? "❤️ Liked" : "🤍 Like"}
-                  </button>
-                  <button
-                    className="action-btn"
-                    onClick={() => {
-                      const current = commentInputs[post.id] || "";
-                      const next = current.trim();
-                      if (next) {
-                        handleAddComment(post.id);
-                      }
-                    }}
-                  >
-                    💬 Add Comment
-                  </button>
-                </div>
-                <div className="comment-box">
-                  <input
-                    type="text"
-                    placeholder="Write a comment..."
-                    value={commentInputs[post.id] || ""}
-                    onChange={(e) =>
-                      handleCommentInputChange(post.id, e.target.value)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleAddComment(post.id);
-                      }
-                    }}
-                  />
-                </div>
-                <div className="comment-list">
-                  {post.comments.map((comment, idx) => (
+              )}
+
+              {profileCommentEntries.length > 0 && (
+                <div>
+                  <h4>Comments on posts</h4>
+                  {profileCommentEntries.map((entry, idx) => (
                     <div className="comment-item" key={idx}>
-                      💬 {comment}
+                      ✍️ post #{entry.postId} by {entry.postUser}: {entry.text}
                     </div>
                   ))}
                 </div>
-              </div>
-            ))}
+              )}
+            </div>
+          )}
+
+          <div className="feed">
+            {(selectedProfile ? profilePosts : feed).map((post) => renderFeedCard(post))}
           </div>
         </>
       )}
@@ -317,69 +383,37 @@ export default function Dashboard() {
             <p>Connect with others, share progress, and get support.</p>
           </div>
 
-          <div className="feed">
-            {feed.map((post) => (
-              <div className="feed-card" key={post.id}>
-                <div className="feed-header">
-                  <img
-                    className="mini-avatar"
-                    src={post.avatar || defaultAvatar}
-                    alt={post.user}
-                  />
-                  <div>
-                    <strong>{post.user}</strong>
-                    <div className="post-time">{post.time}</div>
-                  </div>
+          {selectedProfile && (
+            <div className="profile-view">
+              <button className="back-btn" onClick={() => setSelectedProfile(null)}>
+                ← Back to community
+              </button>
+              <h3>{selectedProfile}'s profile</h3>
+              <p>{profilePosts.length} post(s) authored</p>
+              <p>{profileCommentEntries.length} comment(s) added</p>
+
+              {profilePosts.length > 0 && (
+                <div>
+                  <h4>Author posts</h4>
+                  {profilePosts.map((post) => renderFeedCard(post))}
                 </div>
-                <p>{post.content}</p>
-                <div className="feed-meta">
-                  <span>{post.likes} likes</span>
-                  <span>{post.comments.length} comments</span>
-                </div>
-                <div className="feed-actions">
-                  <button
-                    className="action-btn"
-                    onClick={() => handleLike(post.id)}
-                  >
-                    {post.liked ? "❤️ Liked" : "🤍 Like"}
-                  </button>
-                  <button
-                    className="action-btn"
-                    onClick={() => {
-                      const current = commentInputs[post.id] || "";
-                      const next = current.trim();
-                      if (next) {
-                        handleAddComment(post.id);
-                      }
-                    }}
-                  >
-                    💬 Add Comment
-                  </button>
-                </div>
-                <div className="comment-box">
-                  <input
-                    type="text"
-                    placeholder="Write a comment..."
-                    value={commentInputs[post.id] || ""}
-                    onChange={(e) =>
-                      handleCommentInputChange(post.id, e.target.value)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleAddComment(post.id);
-                      }
-                    }}
-                  />
-                </div>
-                <div className="comment-list">
-                  {post.comments.map((comment, idx) => (
+              )}
+
+              {profileCommentEntries.length > 0 && (
+                <div>
+                  <h4>Comments on posts</h4>
+                  {profileCommentEntries.map((entry, idx) => (
                     <div className="comment-item" key={idx}>
-                      💬 {comment}
+                      ✍️ post #{entry.postId} by {entry.postUser}: {entry.text}
                     </div>
                   ))}
                 </div>
-              </div>
-            ))}
+              )}
+            </div>
+          )}
+
+          <div className="feed">
+            {(selectedProfile ? profilePosts : feed).map((post) => renderFeedCard(post))}
           </div>
         </>
       )}

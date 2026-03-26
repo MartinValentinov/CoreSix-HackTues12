@@ -1,5 +1,7 @@
 services:
   backend:
+    container_name: coresix-backend
+    image: backend:latest
     build: ./server
     ports:
       - "5239:5000"
@@ -10,6 +12,8 @@ services:
       - app-network
 
   frontend:
+    container_name: coresix-frontend
+    image: frontend:latest
     build: ./frontend
     ports:
       - "3000:80"

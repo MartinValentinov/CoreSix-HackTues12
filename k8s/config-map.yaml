@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coresix-config
+data:
+  jwt-issuer: "OOU.API"
+  jwt-audience: "OOU.Clients"
+  api-url: "http://coresix-backend:5000/api"   # frontend uses this

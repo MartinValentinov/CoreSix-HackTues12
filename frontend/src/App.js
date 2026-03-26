@@ -9,7 +9,10 @@ function App() {
   return (
     <Router>
       <div className="app">
-        <header className="app-header">
+        <header 
+          className="app-header"
+          style={{ marginLeft: "0px" }}
+        >
           <h1>SupportCircle</h1>
         </header>
         <main className="app-main">

@@ -49,6 +49,7 @@ void loop() {
   if (distance > 100) 
   {  
     digitalWrite(greenLED, HIGH);
+    delay(200);
   }
   
   // Medium — yellow, slow beep
@@ -56,8 +57,7 @@ void loop() {
   {
     digitalWrite(yellowLED, HIGH);
     tone(buzzer, 500, 100);			// plays a 500Hz beep for 100ms
-    delay(400);
-
+    delay(200);
   }
   
   // Close — red, fast beep
@@ -66,7 +66,6 @@ void loop() {
     digitalWrite(redLED, HIGH);
     tone(buzzer, 800, 100);
     delay(200);
-
   }
   
   // Critical — all flash, continuous alarm

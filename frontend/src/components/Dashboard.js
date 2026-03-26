@@ -216,13 +216,13 @@ export default function Dashboard() {
       {/* Top bar */}
       <div className="topbar">
         <div className="profile">
-            <img
-              className="profile-avatar"
-              src={user?.avatar || defaultAvatar}
-              alt="Profile"
-            />
-            <div className="profile-name">{user?.username || "User"}</div>
-          </div>
+          <img
+            className="profile-avatar"
+            src={user?.avatar || defaultAvatar}
+            alt="Profile"
+          />
+          <div className="profile-name">{user?.username || "User"}</div>
+        </div>
       </div>
 
       {activeTab === "home" && (

@@ -13,7 +13,14 @@ function App() {
           className="app-header"
           style={{ marginLeft: "0px" }}
         >
-          <h1>SupportCircle</h1>
+          <div className="app-brand">
+            <img
+              className="app-logo"
+              src="/logo192.png"
+              alt="SupportCircle logo"
+            />
+            <span className="app-title">SupportCircle</span>
+          </div>
         </header>
         <main className="app-main">
           <Routes>

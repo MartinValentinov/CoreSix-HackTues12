@@ -35,6 +35,8 @@ void loop() {
   distance = duration * 0.0343 / 2; 
   // Sound travels in air at approximately 0.0343 centimeters per microsecond
   // Devide by 2 sound travels to the object and back (double distance)
+
+  if (duration == 0) return; // pulseIn returns 0 whan reading fails so we skip it with return
   
   Serial.print("Distance: ");
   Serial.println(distance);
@@ -46,7 +48,7 @@ void loop() {
   noTone(buzzer);
 
   // Far — green, no sound
-  if (distance > 100) 
+  if (distance > 100)
   {  
     digitalWrite(greenLED, HIGH);
     delay(200);

@@ -5,6 +5,7 @@ using Core.Services;
 using Core.Interfaces;
 using API.Middleware;
 using API.Extensions;
+using API.Hubs;
 
 using DotNetEnv;
 
@@ -22,6 +23,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
 builder.Services.AddJwtAuth(builder.Configuration);
+builder.Services.AddSignalR();
 builder.Services.AddControllers();
 builder.Services.AddCors(options =>
 {
@@ -45,5 +47,5 @@ app.UseCors("FrontendPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
+app.MapHub<ChatHub>("/chat");
 app.Run();

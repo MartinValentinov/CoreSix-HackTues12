@@ -1,1 +1,161 @@
-# CoreSix-HackTues12
+# LifeCore
+### HackTues 12 — Team CoreSix
+
+> **"LimitLess"** — A wearable blind navigation assistant that uses ultrasonic sensing and real-time feedback to help visually impaired people navigate their surroundings independently.
+
+---
+
+## The Idea
+
+LifeCore is a two-part wearable system designed for visually impaired users. A small sensor unit worn on glasses, a headband or another wearable continuously detects obstacles and communicates distance to the user via audio (and visual for the judges) feedback on a communication unit that is on/in a belt/pocket. 
+
+# **Write more about web app**
+
+Built for **Hack TUES 12** under the theme **"Code to Care"**, subtopic **"LimitLess"**.
+
+---
+
+## System Architecture
+
+```
+[SENSOR UNIT]                          [COMMUNICATION UNIT]
+┌──────────────────┐                  ┌──────────────────────┐
+│ ESP32 #1         │                  │ ESP32-S3 #2          │
+│ + HC-SR04        │ ──── BLE ──────→ │ + LEDs (R/Y/G)       │
+│   Ultrasonic     │                  │ + Piezo Buzzer       │
+│     sensor       │                  │ + Potentiometer      │
+└──────────────────┘                  |      (sensitivity)   |
+                                      └──────────────────────┘
+                                                │
+                                                | WiFi
+                                                ▼
+                                      [.NET Backend Server]
+                                      ┌──────────────────────┐
+                                      │ Login / Register     │
+                                      │                      │
+                                      │                      │
+                                      └──────────────────────┘
+```
+
+### Distance Zones
+
+| Zone | Distance | LED | Buzzer |
+|------|----------|-----|--------|
+|  Safe | > 100cm | Green | Silent |
+|  Caution | 50–100cm | Yellow | Slow beep (500Hz) |
+|  Close | 20–50cm | Red | Fast beep (800Hz) |
+|  Critical | < 20cm | All flash | Continuous alarm (1200Hz) |
+
+*All thresholds scale dynamically with the potentiometer sensitivity setting. Sensitivity can be between 0.5 and 2.0.*
+
+---
+
+## Repository Structure
+
+```
+CoreSix-HackTues12/
+│
+├── LifeCore_v1/        # Hardware v1 — hardcoded distance thresholds (Arduino UNO)
+├── LifeCore_v2/        # Hardware v2 — potentiometer sensitivity control added
+├── LifeCore_v3/        # Hardware v3 — migrated from Arduino UNO to ESP32
+├── LifeCore_v4/        # Hardware v4 — wireless, two ESP32s communicating via BLE
+│
+├── frontend/           # Web dashboard
+├── server/             # .NET backend — auth, API, event logging (C#)
+├── k8s/                # Kubernetes deployment manifests
+│
+├── docker-compose.yaml # Local development setup
+├── .gitignore
+└── LICENSE             # MIT
+```
+
+### Hardware Versions
+
+| Version | Board | Key Feature |
+|---------|-------|-------------|
+| `v1` | Arduino UNO | Basic obstacle detection, hardcoded thresholds |
+| `v2` | Arduino UNO | Potentiometer for adjustable sensitivity |
+| `v3` | ESP32 | Same functionality as v2, migrated to ESP32 |
+| `v4` | 2x ESP32 | Wireless — sensor unit and feedback unit communicate via BLE |
+
+---
+
+## Hardware Components (v4)
+
+**Sensor unit (ESP32 #1):**
+- ESP32 development board
+- HC-SR04 ultrasonic distance sensor
+
+**Communication unit (ESP32 #2):**
+- ESP32 development board
+- 3x LEDs (red, yellow, green) + 330Ω resistors
+- Piezo buzzer
+- 10kΩ potentiometer (sensitivity control)
+---
+
+## Running the Software / DevOps
+
+### Prerequisites
+- Docker and Docker Compose (Docker Desktop + Kubernetes Plugin)
+- Node.js (for frontend development)
+- .NET SDK (for backend development)
+
+### Quick Start with Docker
+
+```bash
+# Clone the repo
+git clone https://github.com/MartinValentinov/CoreSix-HackTues12.git
+cd CoreSix-HackTues12
+
+# Copy and fill in environment variables
+cp .env.example .env
+
+# Start everything
+docker-compose up --build
+```
+
+The frontend will be available at `http://localhost:3000`  
+The backend API will be available at `http://localhost:5239`
+
+### Running individually
+
+**Backend:**
+```bash
+cd server
+dotnet run
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm start
+```
+
+---
+
+## Deployment
+
+Kubernetes manifests are available in the `k8s/` folder for production deployment.
+
+```bash
+kubectl create namespace lifecore
+kubectl apply -f k8s/ -n lifecore
+```
+
+---
+
+## Team CoreSix
+
+Built at **Hack TUES 12** by Team CoreSix.
+- **Martin Valentinov**
+- **Ivaneta Ivanova**
+- **Kristiyan Kobarelov**
+- **Yordan Tsonev**
+- **Viktor Sirakov**
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.

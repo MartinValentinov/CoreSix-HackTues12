@@ -48,14 +48,14 @@ void loop() {
   noTone(buzzer);
 
   // Far — green, no sound
-  if (distance > 100)
+  if (distance > 200)
   {  
     digitalWrite(greenLED, HIGH);
     delay(200);
   }
   
   // Medium — yellow, slow beep
-  else if (distance > 50) 
+  else if (distance > 100) 
   {
     digitalWrite(yellowLED, HIGH);
     tone(buzzer, 500, 100);			// plays a 500Hz beep for 100ms
@@ -63,7 +63,7 @@ void loop() {
   }
   
   // Close — red, fast beep
-  else if (distance > 20) 
+  else if (distance > 50) 
   {
     digitalWrite(redLED, HIGH);
     tone(buzzer, 800, 100);

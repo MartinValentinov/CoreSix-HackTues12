@@ -4,6 +4,9 @@ const API_URL = process.env.REACT_APP_API_URL || "/api";
 export const API_ORIGIN = API_URL.startsWith("http")
   ? API_URL.replace(/\/api\/?$/, "")
   : window.location.origin;
+const FORCE_NGROK_HEADER =
+  process.env.REACT_APP_NGROK_SKIP_WARNING === "true" ||
+  API_ORIGIN.includes("ngrok-free.dev");
 
 const api = axios.create({
   baseURL: API_URL,
@@ -14,6 +17,11 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  if (FORCE_NGROK_HEADER) {
+    config.headers["ngrok-skip-browser-warning"] = "true";
+  }
+
   return config;
 });
 

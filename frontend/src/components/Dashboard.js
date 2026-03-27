@@ -88,6 +88,7 @@ export default function Dashboard({ onLogout }) {
   const logoutTriggeredRef = useRef(false);
   const [distanceAlert, setDistanceAlert] = useState("Path Clear");
   const alertConnectionRef = useRef(null);
+  const [speechUnlocked, setSpeechUnlocked] = useState(false);
 
   useEffect(() => {
     document.body.classList.toggle("dark-theme", darkMode);
@@ -141,9 +142,32 @@ export default function Dashboard({ onLogout }) {
     alertConnectionRef.current = alertConnection;
 
     // Listen for the "ReceiveAlert" method from your DistanceController
-    alertConnection.on("ReceiveAlert", (message) => {
-      setDistanceAlert(message);
-    });
+  alertConnection.on("ReceiveAlert", (message) => {
+    setDistanceAlert(message);
+
+    // Text-to-speech
+    if ("speechSynthesis" in window) {
+      if (speechSynthesis.speaking) speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(message);
+
+      if (message.startsWith("WARNING")) {
+        utterance.rate  = 1.3;
+        utterance.pitch = 1.4;
+        utterance.volume = 1.0;
+      } else if (message.startsWith("Caution")) {
+        utterance.rate  = 1.0;
+        utterance.pitch = 1.1;
+        utterance.volume = 0.9;
+      } else {
+        utterance.rate  = 0.9;
+        utterance.pitch = 1.0;
+        utterance.volume = 0.6;
+      }
+
+      speechSynthesis.speak(utterance);
+    }
+  });
 
     const startAlerts = async () => {
       try {
@@ -539,9 +563,21 @@ export default function Dashboard({ onLogout }) {
         </div>
       </div>
 
-      <div className={`status-banner ${distanceAlert.includes('Obstacle') || distanceAlert.includes('close') ? 'warning' : 'clear'}`}>
+      <div className={`status-banner ${distanceAlert.startsWith("WARNING") ? "warning" : distanceAlert.startsWith("Caution") ? "caution" : "clear"}`}>
         <span className="status-label">Sensor Status:</span>
         <span className="status-message">{distanceAlert}</span>
+        {!speechUnlocked && (
+          <button
+            className="action-btn"
+            onClick={() => {
+              const u = new SpeechSynthesisUtterance("");
+              speechSynthesis.speak(u);
+              setSpeechUnlocked(true);
+            }}
+          >
+            🔊 Enable Voice
+          </button>
+        )}
       </div>
 
       {activeTab === "home" && (

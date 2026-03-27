@@ -3,7 +3,7 @@ import api from "../api/api";
 import { useNavigate } from "react-router-dom";
 import { SidebarContext } from "../context/SidebarContext";
 
-export default function Dashboard() {
+export default function Dashboard({ onLogout }) {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
   const { sidebarWidth, setSidebarWidth } = useContext(SidebarContext);
@@ -54,6 +54,12 @@ export default function Dashboard() {
   }, [isResizing, setSidebarWidth]);
 
   const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+      navigate("/login");
+      return;
+    }
+
     localStorage.removeItem("token");
     navigate("/login");
   };

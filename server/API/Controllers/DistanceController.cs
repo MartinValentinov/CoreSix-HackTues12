@@ -19,18 +19,11 @@ namespace API.Controllers
         [HttpPost]
         public async Task<IActionResult> Post([FromBody] DistanceDto dto)
         {
-            string message;
+            if (dto.Alert is null)
+                return BadRequest("Missing alert message");
 
-            if (dto.Distance < 20)
-                message = "Obstacle very close!";
-            else if (dto.Distance < 50)
-                message = "Object ahead";
-            else
-                message = "Path clear";
-
-            await _hub.Clients.All.SendAsync("ReceiveAlert", message);
-
-            return Ok();
+            await _hub.Clients.All.SendAsync("ReceiveAlert", dto.Alert, dto.Distance);
+            return Ok(new { received = dto.Distance, alert = dto.Alert });
         }
     }
 }

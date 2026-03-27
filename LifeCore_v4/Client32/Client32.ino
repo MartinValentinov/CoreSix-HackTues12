@@ -58,7 +58,7 @@ bool connectToServer() {
   }
 
   pClient = BLEDevice::createClient();
-  pClient->setCallbacks(new MyClientCallbacks());   // attach disconnect callback
+  pClient->setClientCallbacks(new MyClientCallbacks());   // attach disconnect callback
 
   if (!pClient->connect(*pServerAddress)) return false;
   

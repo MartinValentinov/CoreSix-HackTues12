@@ -86,6 +86,8 @@ export default function Dashboard({ onLogout }) {
   const [communityError, setCommunityError] = useState("");
   const connectionRef = useRef(null);
   const logoutTriggeredRef = useRef(false);
+  const [distanceAlert, setDistanceAlert] = useState("Path Clear");
+  const alertConnectionRef = useRef(null);
 
   useEffect(() => {
     document.body.classList.toggle("dark-theme", darkMode);
@@ -124,6 +126,42 @@ export default function Dashboard({ onLogout }) {
     localStorage.removeItem("token");
     navigate("/login");
   };
+
+  useEffect(() => {
+   if (isAuthLoading || !user || alertConnectionRef.current) return;
+
+   const alertConnection = new HubConnectionBuilder()
+     .withUrl("http://10.35.86.8:5005/alertHub", {
+       accessTokenFactory: () => localStorage.getItem("token") || "",
+      })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Warning)
+      .build();
+
+    alertConnectionRef.current = alertConnection;
+
+    // Listen for the "ReceiveAlert" method from your DistanceController
+    alertConnection.on("ReceiveAlert", (message) => {
+      setDistanceAlert(message);
+    });
+
+    const startAlerts = async () => {
+      try {
+        await alertConnection.start();
+        console.log("AlertHub Connected!");
+      } catch (err) {
+        console.error("AlertHub Error:", err);
+      }
+    };
+
+    startAlerts();
+
+    return () => {
+      alertConnection.off("ReceiveAlert");
+      alertConnection.stop();
+      alertConnectionRef.current = null;
+    };
+  }, [isAuthLoading, user]);
 
   const [commentInputs, setCommentInputs] = useState({});
   const historyLoadedRef = useRef(false);
@@ -499,6 +537,11 @@ export default function Dashboard({ onLogout }) {
           />
           <div className="profile-name">{user?.username || "User"}</div>
         </div>
+      </div>
+
+      <div className={`status-banner ${distanceAlert.includes('Obstacle') || distanceAlert.includes('close') ? 'warning' : 'clear'}`}>
+        <span className="status-label">Sensor Status:</span>
+        <span className="status-message">{distanceAlert}</span>
       </div>
 
       {activeTab === "home" && (

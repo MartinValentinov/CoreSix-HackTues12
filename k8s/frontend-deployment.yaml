@@ -21,6 +21,13 @@ spec:
           envFrom:
             - configMapRef:
                 name: frontend-config
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
           volumeMounts:
             - name: nginx-config
               mountPath: /etc/nginx/conf.d

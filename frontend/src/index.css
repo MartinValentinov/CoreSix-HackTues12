@@ -351,6 +351,45 @@ button:hover {
   margin-top: 10px;
 }
 
+.status-banner {
+  display: flex;
+  align-items: center;
+  padding: 15px 20px;
+  margin-bottom: 25px;
+  border-radius: 16px;
+  font-weight: 600;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.status-banner.warning {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  /* Optional: make it pulse when there's an obstacle */
+  animation: pulse-red 2s infinite;
+}
+
+.status-banner.clear {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.status-label {
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  mergin-right: 12px;
+  opacity: 0.7;
+}
+
+@keyframes pulse-alert {
+  0% { transform: scale(1); box-shadow: 0 4px 12px rgba(185, 28, 28, 0.1); }
+  50% { transform: scale(1.01); box-shadow: 0 4px 20px rgba(185, 28, 28, 0.2); }
+  100% { transform: scale(1); box-shadow: 0 4px 12px rgba(185, 28, 28, 0.1); }
+}
+
 .comment-item {
   margin-bottom: 6px;
   font-size: 14px;

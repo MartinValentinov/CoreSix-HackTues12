@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+
+  LOG_LEVEL: "Information"
+
+  FEATURE_FLAG_NEW_LOGIN: "true"
+
+  BACKEND_PORT: "5000"

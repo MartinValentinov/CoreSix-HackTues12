@@ -1,31 +1,32 @@
 using Data.Entities;
-using Microsoft.EntityFrameworkCore;
 using Data.Context;
+using MongoDB.Driver;
 
 namespace Data.Repositories
 {
     public class UserRepository : IUserRepository
     {
-        private readonly AppDbContext _context;
-        public UserRepository(AppDbContext context)
+        private readonly MongoDbContext _context;
+        public UserRepository(MongoDbContext context)
         {
             _context = context;
         }
 
         public void AddUser(User user)
         {
-            _context.Users.Add(user);
+            _context.Users.InsertOne(user);
         }
 
         public User? GetByUsername(string username)
         {
             return _context.Users
-                .FirstOrDefault(u => u.Username == username);
+                .Find(u => u.Username == username)
+                .FirstOrDefault();
         }
 
         public void SaveChanges()
         {
-            _context.SaveChanges();
+            // MongoDB writes are immediate; kept for interface compatibility.
         }
     }
 }

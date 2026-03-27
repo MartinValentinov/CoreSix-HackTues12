@@ -1,30 +1,91 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useContext, useRef } from "react";
+import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import api from "../api/api";
 import { useNavigate } from "react-router-dom";
 import { SidebarContext } from "../context/SidebarContext";
 
-export default function Dashboard() {
+const defaultAvatar = "https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png";
+
+function formatPostTime(value) {
+  if (!value) return "Just now";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Just now";
+
+  return date.toLocaleString([], {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function normalizeMessage(raw) {
+  const timestamp = raw?.timestamp || raw?.Timestamp || new Date().toISOString();
+  const rawComments = raw?.comments || raw?.Comments;
+
+  return {
+    id: raw?.id || raw?.Id || `${Date.now()}-${Math.random()}`,
+    userId: raw?.userId || raw?.UserId || null,
+    user: raw?.username || raw?.Username || "Unknown",
+    avatar: defaultAvatar,
+    time: formatPostTime(timestamp),
+    content: raw?.message || raw?.Message || "",
+    timestamp,
+    likes: raw?.likes ?? raw?.Likes ?? 0,
+    liked: Boolean(raw?.likedByCurrentUser ?? raw?.LikedByCurrentUser),
+    comments: Array.isArray(rawComments)
+      ? rawComments.map((comment) => ({
+          id: comment?.id || comment?.Id || `${Date.now()}-${Math.random()}`,
+          userId: comment?.userId || comment?.UserId || null,
+          user: comment?.username || comment?.Username || "Unknown",
+          text: comment?.text || comment?.Text || "",
+          timestamp: comment?.timestamp || comment?.Timestamp || new Date().toISOString(),
+        }))
+      : [],
+  };
+}
+
+export default function Dashboard({ onLogout }) {
   const [user, setUser] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const navigate = useNavigate();
   const { sidebarWidth, setSidebarWidth } = useContext(SidebarContext);
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await api.get("/auth/me"); // protected endpoint
+        const res = await api.get("/auth/me");
         setUser(res.data);
       } catch (err) {
         console.error(err.response || err);
+        if (err.response?.status === 401) {
+          if (!logoutTriggeredRef.current) {
+            logoutTriggeredRef.current = true;
+            if (onLogout) {
+              onLogout();
+              return;
+            }
+            localStorage.removeItem("token");
+          }
+        }
+
         navigate("/login");
+      } finally {
+        setIsAuthLoading(false);
       }
     };
     fetchUser();
-  }, [navigate]);
+  }, [navigate, onLogout]);
 
   const [activeTab, setActiveTab] = useState("home");
   const [darkMode, setDarkMode] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState("disconnected");
+  const [communityError, setCommunityError] = useState("");
+  const connectionRef = useRef(null);
+  const logoutTriggeredRef = useRef(false);
 
   useEffect(() => {
     document.body.classList.toggle("dark-theme", darkMode);
@@ -54,13 +115,18 @@ export default function Dashboard() {
   }, [isResizing, setSidebarWidth]);
 
   const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+      navigate("/login");
+      return;
+    }
+
     localStorage.removeItem("token");
     navigate("/login");
   };
 
   const [commentInputs, setCommentInputs] = useState({});
-
-  const defaultAvatar = "https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png";
+  const historyLoadedRef = useRef(false);
 
   const initialFeed = [
     {
@@ -124,61 +190,173 @@ export default function Dashboard() {
   const [feed, setFeed] = useState(initialFeed);
   const [newPostText, setNewPostText] = useState("");
 
-  const handleAddPost = () => {
-    const content = newPostText.trim();
-    if (!content) return;
+  useEffect(() => {
 
-    const nextId = feed.length ? Math.max(...feed.map((p) => p.id)) + 1 : 1;
-    const newPost = {
-      id: nextId,
-      user: user?.username || "You",
-      time: "Just now",
-      content,
-      likes: 0,
-      liked: false,
-      comments: [],
+    if (isAuthLoading || !user || connectionRef.current) return;
+
+  const connection = new HubConnectionBuilder()
+    .withUrl("/chat", {
+      accessTokenFactory: () => localStorage.getItem("token") || "",
+    })
+    .withAutomaticReconnect()
+    .configureLogging(LogLevel.Warning)
+    .build();
+
+  connectionRef.current = connection;
+
+  connection.on("ReceiveMessage", (payloadOrUsername, maybeMessage) => {
+    const normalized =
+      typeof payloadOrUsername === "object"
+        ? normalizeMessage(payloadOrUsername)
+        : normalizeMessage({
+            username: payloadOrUsername,
+            message: maybeMessage,
+            timestamp: new Date().toISOString(),
+          });
+    setFeed((prev) => [normalized, ...prev]);
+  });
+
+  connection.on("ReceiveComment", (payload) => {
+    const messageId = payload?.messageId || payload?.MessageId;
+    const rawComment = payload?.comment || payload?.Comment;
+    if (!messageId || !rawComment) return;
+
+    const normalizedComment = {
+      id: rawComment.id || rawComment.Id || `${Date.now()}-${Math.random()}`,
+      userId: rawComment.userId || rawComment.UserId || null,
+      user: rawComment.username || rawComment.Username || "Unknown",
+      text: rawComment.text || rawComment.Text || "",
+      timestamp: rawComment.timestamp || rawComment.Timestamp || new Date().toISOString(),
     };
 
-    setFeed((prev) => [newPost, ...prev]);
-    setNewPostText("");
-  };
-
-  const handleLike = (postId) => {
     setFeed((prev) =>
       prev.map((post) =>
-        post.id === postId
+        String(post.id) === String(messageId)
+          ? { ...post, comments: [...post.comments, normalizedComment] }
+          : post
+      )
+    );
+  });
+
+  connection.on("ReceiveLikeUpdate", (payload) => {
+    const messageId = payload?.messageId || payload?.MessageId;
+    if (!messageId) return;
+
+    const likes = payload?.likes ?? payload?.Likes;
+    const likedByCurrentUser = payload?.likedByCurrentUser ?? payload?.LikedByCurrentUser;
+
+    setFeed((prev) =>
+      prev.map((post) =>
+        String(post.id) === String(messageId)
           ? {
               ...post,
-              liked: !post.liked,
-              likes: post.liked ? post.likes - 1 : post.likes + 1,
+              likes: Number.isFinite(likes) ? likes : post.likes,
+              liked: typeof likedByCurrentUser === "boolean" ? likedByCurrentUser : post.liked,
             }
           : post
       )
     );
+  });
+
+  connection.onreconnecting(() => setConnectionStatus("reconnecting"));
+  connection.onreconnected(() => setConnectionStatus("connected"));
+  connection.onclose(() => setConnectionStatus("disconnected"));
+
+  const start = async () => {
+    try {
+      setConnectionStatus("connecting");
+      await connection.start();
+      setConnectionStatus("connected");
+      setCommunityError("");
+
+      if (!historyLoadedRef.current) {
+        const history = await connection.invoke("GetRecentMessages");
+        if (Array.isArray(history) && history.length > 0) {
+          historyLoadedRef.current = true;
+          setFeed((prev) => [
+            ...history.map((item) => normalizeMessage(item)),
+            ...prev,
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setConnectionStatus("disconnected");
+
+      const status = err?.statusCode || err?.response?.status;
+      const message = err?.message || "";
+      const isUnauthorized = status === 401 || (typeof message === "string" && message.includes("401"));
+
+      if (isUnauthorized) {
+        if (!logoutTriggeredRef.current) {
+          logoutTriggeredRef.current = true;
+          if (onLogout) {
+            onLogout();
+            return;
+          }
+          localStorage.removeItem("token");
+        }
+        navigate("/login");
+        return;
+      }
+
+      setCommunityError("Could not connect to live community feed.");
+    }
+  };
+
+  start();
+
+  return () => {
+    connection.off("ReceiveMessage");
+    connection.off("ReceiveComment");
+    connection.off("ReceiveLikeUpdate");
+    connection.stop();
+    connectionRef.current = null;
+  };
+}, [isAuthLoading, navigate, onLogout, user]);
+
+  const handleAddPost = async () => {
+    const content = newPostText.trim();
+    if (!content || !connectionRef.current || connectionStatus !== "connected") return;
+
+    try {
+      await connectionRef.current.invoke("SendMessage", content);
+      setNewPostText("");
+      setCommunityError("");
+    } catch (err) {
+      console.error(err);
+      setCommunityError("Could not publish your message.");
+    }
+  };
+
+  const handleLike = async (postId) => {
+    if (!connectionRef.current || connectionStatus !== "connected") return;
+
+    try {
+      await connectionRef.current.invoke("ToggleLike", postId);
+      setCommunityError("");
+    } catch (err) {
+      console.error(err);
+      setCommunityError("Could not update like.");
+    }
   };
 
   const handleCommentInputChange = (postId, value) => {
     setCommentInputs((prev) => ({ ...prev, [postId]: value }));
   };
 
-  const handleAddComment = (postId) => {
+  const handleAddComment = async (postId) => {
     const commentText = (commentInputs[postId] || "").trim();
-    if (!commentText) return;
+    if (!commentText || !connectionRef.current || connectionStatus !== "connected") return;
 
-    const commentPayload = {
-      user: user?.username || "Unknown",
-      text: commentText,
-    };
-
-    setFeed((prev) =>
-      prev.map((post) =>
-        post.id === postId
-          ? { ...post, comments: [...post.comments, commentPayload] }
-          : post
-      )
-    );
-
-    setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
+    try {
+      await connectionRef.current.invoke("AddComment", postId, commentText);
+      setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
+      setCommunityError("");
+    } catch (err) {
+      console.error(err);
+      setCommunityError("Could not add comment.");
+    }
   };
 
   const profilePosts = selectedProfile
@@ -213,7 +391,7 @@ export default function Dashboard() {
           >
             {post.user}
           </strong>
-          <div className="post-time">{post.time}</div>
+          <div className="post-time">{post.time || formatPostTime(post.timestamp)}</div>
         </div>
       </div>
       <p>{post.content}</p>
@@ -258,7 +436,7 @@ export default function Dashboard() {
       </div>
       <div className="comment-list">
         {post.comments.map((comment, idx) => (
-          <div className="comment-item" key={idx}>
+          <div className="comment-item" key={comment.id || idx}>
             💬
             <strong
               className="comment-author"

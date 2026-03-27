@@ -1,10 +1,29 @@
+import { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import Dashboard from "./components/Dashboard";
 
 function App() {
-  const token = localStorage.getItem("token");
+  const [token, setToken] = useState(() => localStorage.getItem("token"));
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setToken(null);
+    };
+
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
+  }, []);
+
+  const handleAuthSuccess = (newToken) => {
+    setToken(newToken);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setToken(null);
+  };
 
   return (
     <Router>
@@ -25,11 +44,17 @@ function App() {
         <main className="app-main">
           <Routes>
             <Route path="/" element={<Navigate to="/login" />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route
+              path="/login"
+              element={token ? <Navigate to="/dashboard" /> : <Login onAuthSuccess={handleAuthSuccess} />}
+            />
+            <Route
+              path="/register"
+              element={token ? <Navigate to="/dashboard" /> : <Register onAuthSuccess={handleAuthSuccess} />}
+            />
             <Route
               path="/dashboard"
-              element={token ? <Dashboard /> : <Navigate to="/login" />}
+              element={token ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/login" />}
             />
           </Routes>
         </main>

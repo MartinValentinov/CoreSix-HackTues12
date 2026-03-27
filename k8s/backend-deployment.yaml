@@ -2,8 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
+  namespace: lifecore
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: backend
@@ -14,17 +15,20 @@ spec:
     spec:
       containers:
         - name: backend
-          image: backend:latest
+          image: viktorsirakov08/lifecore-backend:v2
           ports:
-            - containerPort: 8000
+            - containerPort: 5000
           env:
-            - name: DB_HOST
-              value: postgres
-            - name: DB_PORT
-              value: "5432"
-            - name: DB_NAME
-              value: notesdb
-            - name: DB_USER
-              value: postgres
-            - name: DB_PASSWORD
-              value: postgres
+            - name: Jwt__Key
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: jwt
+            - name: ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: connection-string
+          envFrom:
+            - configMapRef:
+                name: backend-config

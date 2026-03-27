@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import api from "../api/api";
 import { useNavigate, Link } from "react-router-dom";
 
-export default function Register() {
+export default function Register({ onAuthSuccess }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,6 +13,9 @@ export default function Register() {
     try {
       const res = await api.post("/auth/register", { username, email, password });
       localStorage.setItem("token", res.data.token);
+      if (onAuthSuccess) {
+        onAuthSuccess(res.data.token);
+      }
       navigate("/dashboard");
     } catch (err) {
       console.error(err.response || err);

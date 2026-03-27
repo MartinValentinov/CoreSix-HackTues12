@@ -89,6 +89,13 @@ export default function Dashboard({ onLogout }) {
   const [distanceAlert, setDistanceAlert] = useState("Path Clear");
   const alertConnectionRef = useRef(null);
   const [speechUnlocked, setSpeechUnlocked] = useState(false);
+  const [speechEnabled, setSpeechEnabled] = useState(true);
+  const speechEnabledRef = useRef(true);
+
+  const toggleSpeech = (val) => {
+    speechEnabledRef.current = val;
+    setSpeechEnabled(val);
+  };
 
   useEffect(() => {
     document.body.classList.toggle("dark-theme", darkMode);
@@ -145,8 +152,12 @@ export default function Dashboard({ onLogout }) {
   alertConnection.on("ReceiveAlert", (message) => {
     setDistanceAlert(message);
 
+    if (!message.startsWith("Clear")) {
+      toggleSpeech(true);
+    }
+
     // Text-to-speech
-    if ("speechSynthesis" in window) {
+    if ("speechSynthesis" in window && speechEnabledRef.current) {
       if (speechSynthesis.speaking) speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(message);
@@ -566,16 +577,21 @@ export default function Dashboard({ onLogout }) {
       <div className={`status-banner ${distanceAlert.startsWith("WARNING") ? "warning" : distanceAlert.startsWith("Caution") ? "caution" : "clear"}`}>
         <span className="status-label">Sensor Status:</span>
         <span className="status-message">{distanceAlert}</span>
-        {!speechUnlocked && (
+        {!speechUnlocked ? (
+          <button className="action-btn" onClick={() => {
+            const u = new SpeechSynthesisUtterance("");
+            speechSynthesis.speak(u);
+            setSpeechUnlocked(true);
+          }}>
+            🔊 Enable Voice
+          </button>
+        ) : (
           <button
             className="action-btn"
-            onClick={() => {
-              const u = new SpeechSynthesisUtterance("");
-              speechSynthesis.speak(u);
-              setSpeechUnlocked(true);
-            }}
+            onClick={() => toggleSpeech(!speechEnabled)}
+            disabled={distanceAlert.startsWith("Clear")}
           >
-            🔊 Enable Voice
+            {speechEnabled ? "🔇 Stop Voice" : "🔊 Resume Voice"}
           </button>
         )}
       </div>

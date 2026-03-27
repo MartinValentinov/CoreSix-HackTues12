@@ -58,7 +58,9 @@ var app = builder.Build();
 
 using var scope = app.Services.CreateScope();
 var dbContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
+var chatService = scope.ServiceProvider.GetRequiredService<ChatService>();
 await dbContext.EnsureIndexesAsync();
+await chatService.SeedInitialMessagesAsync();
 
 app.UseMiddleware<LoggingMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();

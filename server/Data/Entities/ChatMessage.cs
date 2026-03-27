@@ -28,6 +28,14 @@ namespace Data.Entities
         public string Username { get; set; } = "Unknown";
         public string Message { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        public int Likes { get; set; } = 0;
+
+        [BsonRepresentation(BsonType.ObjectId)]
+        public List<string> LikedByUserIds { get; set; } = new();
+
+        [BsonIgnore]
+        public bool LikedByCurrentUser { get; set; } = false;
+
         public List<ChatComment> Comments { get; set; } = new();
     }
 }

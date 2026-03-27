@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext, useRef } from "react";
-import { HubConnectionBuilder, HttpTransportType, LogLevel } from "@microsoft/signalr";
+import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import api from "../api/api";
 import { useNavigate } from "react-router-dom";
 import { SidebarContext } from "../context/SidebarContext";
@@ -32,8 +32,8 @@ function normalizeMessage(raw) {
     time: formatPostTime(timestamp),
     content: raw?.message || raw?.Message || "",
     timestamp,
-    likes: 0,
-    liked: false,
+    likes: raw?.likes ?? raw?.Likes ?? 0,
+    liked: Boolean(raw?.likedByCurrentUser ?? raw?.LikedByCurrentUser),
     comments: Array.isArray(rawComments)
       ? rawComments.map((comment) => ({
           id: comment?.id || comment?.Id || `${Date.now()}-${Math.random()}`,
@@ -238,6 +238,26 @@ export default function Dashboard({ onLogout }) {
     );
   });
 
+  connection.on("ReceiveLikeUpdate", (payload) => {
+    const messageId = payload?.messageId || payload?.MessageId;
+    if (!messageId) return;
+
+    const likes = payload?.likes ?? payload?.Likes;
+    const likedByCurrentUser = payload?.likedByCurrentUser ?? payload?.LikedByCurrentUser;
+
+    setFeed((prev) =>
+      prev.map((post) =>
+        String(post.id) === String(messageId)
+          ? {
+              ...post,
+              likes: Number.isFinite(likes) ? likes : post.likes,
+              liked: typeof likedByCurrentUser === "boolean" ? likedByCurrentUser : post.liked,
+            }
+          : post
+      )
+    );
+  });
+
   connection.onreconnecting(() => setConnectionStatus("reconnecting"));
   connection.onreconnected(() => setConnectionStatus("connected"));
   connection.onclose(() => setConnectionStatus("disconnected"));
@@ -289,6 +309,7 @@ export default function Dashboard({ onLogout }) {
   return () => {
     connection.off("ReceiveMessage");
     connection.off("ReceiveComment");
+    connection.off("ReceiveLikeUpdate");
     connection.stop();
     connectionRef.current = null;
   };
@@ -308,18 +329,16 @@ export default function Dashboard({ onLogout }) {
     }
   };
 
-  const handleLike = (postId) => {
-    setFeed((prev) =>
-      prev.map((post) =>
-        post.id === postId
-          ? {
-              ...post,
-              liked: !post.liked,
-              likes: post.liked ? post.likes - 1 : post.likes + 1,
-            }
-          : post
-      )
-    );
+  const handleLike = async (postId) => {
+    if (!connectionRef.current || connectionStatus !== "connected") return;
+
+    try {
+      await connectionRef.current.invoke("ToggleLike", postId);
+      setCommunityError("");
+    } catch (err) {
+      console.error(err);
+      setCommunityError("Could not update like.");
+    }
   };
 
   const handleCommentInputChange = (postId, value) => {

@@ -24,7 +24,8 @@ namespace API.Hubs
 
         public async Task<List<ChatMessage>> GetRecentMessages()
         {
-            return await _chatService.GetMessages();
+            var username = Context.User?.Identity?.Name ?? "Unknown";
+            return await _chatService.GetMessagesForUserAsync(username);
         }
 
         public async Task AddComment(string messageId, string commentText)
@@ -36,6 +37,19 @@ namespace API.Hubs
             {
                 MessageId = messageId,
                 Comment = comment
+            });
+        }
+
+        public async Task ToggleLike(string messageId)
+        {
+            var username = Context.User?.Identity?.Name ?? "Unknown";
+            var result = await _chatService.ToggleLikeAsync(messageId, username);
+
+            await Clients.All.SendAsync("ReceiveLikeUpdate", new
+            {
+                MessageId = result.MessageId,
+                Likes = result.Likes,
+                LikedByCurrentUser = result.LikedByCurrentUser
             });
         }
     }

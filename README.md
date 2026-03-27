@@ -11,9 +11,9 @@ LifeCore is a two-part wearable system designed for visually impaired users. A s
 
 There are 4 distance zones (Safe, Caution, Close, Critical) that trigger different LED colors and buzzer patterns. The distance thresholds can be adjusted in real-time using a potentiometer for sensitivity control. The sensor unit and communication unit communicate wirelessly via Bluetooth Low Energy (BLE).
 
-The communication unit also connects to a backend server (Raspberry Pi) for user authentication and text-to-speech conversion, providing users with detailed spoken feedback about their surroundings.
+The communication unit also connects to a server-hosted website on Raspberry Pi that has user authentication and text-to-speech conversion, providing users with detailed spoken feedback about their surroundings.
 
-The web app dashboard also serves as a community hub for users (both visually impaired and sighted) to share tips, stories and other information about their disability.
+The web app dashboard also serves as a community hub for users (regardless of their disabilities) to share tips, stories and other information about their disability.
 
 Built for **Hack TUES 12** under the theme **"Code to Care"**, subtopic **"LimitLess"**.
 
@@ -81,46 +81,32 @@ CoreSix-HackTues12/
 | `v1` | Arduino UNO | Basic obstacle detection, hardcoded thresholds |
 | `v2` | Arduino UNO | Potentiometer for adjustable sensitivity |
 | `v3` | ESP32 | Same functionality as v2, migrated to ESP32 |
-| `v4` | 2x ESP32 | Wireless — sensor unit and feedback unit communicate via BLE |
+| `v4` | 2x ESP32 | Wireless — sensor unit and feedback unit communicate via Bluetooth Low Energy (BLE) |
 
 ---
 
 ## Hardware Components (v4)
 
-**Sensor unit (ESP32 #1):**
+**Sensor unit (ESP32):**
 - ESP32 development board
 - HC-SR04 ultrasonic distance sensor
 
-**Communication unit (ESP32 #2):**
+**Communication unit (OLIMEX ESP32-S3):**
 - ESP32 development board
 - 3x LEDs (red, yellow, green) + 330Ω resistors
 - Piezo buzzer
 - 10kΩ potentiometer (sensitivity control)
----
 
-## Running the Software / DevOps
+## Software - The Website
+- Dashboard that displays all posts, comments, etc.
+- Login / Register system
+- Both of those write and read data from a non-relational database (MongoDB)
+
+## Running the Software
 
 ### Prerequisites
-- Docker and Docker Compose (Docker Desktop + Kubernetes Plugin)
 - Node.js (for frontend development)
 - .NET SDK (for backend development)
-
-### Quick Start with Docker
-
-```bash
-# Clone the repo
-git clone https://github.com/MartinValentinov/CoreSix-HackTues12.git
-cd CoreSix-HackTues12
-
-# Copy and fill in environment variables
-cp .env.example .env
-
-# Start everything
-docker-compose up --build
-```
-
-The frontend will be available at `http://localhost:3000`  
-The backend API will be available at `http://localhost:5239`
 
 ### Running individually
 
@@ -139,25 +125,17 @@ npm start
 
 ---
 
-## Deployment
-
-Kubernetes manifests are available in the `k8s/` folder for production deployment.
-
-```bash
-kubectl create namespace lifecore
-kubectl apply -f k8s/ -n lifecore
-```
-
----
+### Link to website
+- https://lifecoresu.netlify.app
 
 ## Team CoreSix
 
 Built at **Hack TUES 12** by Team CoreSix.
-- **Martin Valentinov**
-- **Ivaneta Ivanova**
-- **Kristiyan Kobarelov**
-- **Yordan Tsonev**
-- **Viktor Sirakov**
+- **Ivaneta Ivanova** -> Hardware, Simulation / Wiring Diagrams, README
+- **Kristiyan Kobarelov** -> Hardware Assistance, Testing, Presentation
+- **Martin Valentinov** -> Hardware, Server Hosting, Backend, Logic
+- **Viktor Sirakov** -> Server Hosting Assistance, VCT / DevOps
+- **Yordan Tsonev** -> Frontend, Script, Chat System
 
 ---
 

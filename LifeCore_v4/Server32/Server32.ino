@@ -7,6 +7,9 @@
 // --- BLE CONFIG ---
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E" 
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
+BLECharacteristic *pTxCharacteristic;
 
 // --- PERIPHERAL PINS ---
 const int greenLED = 8;
@@ -24,6 +27,10 @@ bool oldDeviceConnected = false;
 int receivedDistance = 999; 
 unsigned long lastDataTime = 0;
 const unsigned long timeoutInterval = 1000; // 1 second timeout
+
+unsigned long lastVoiceNotifyTime = 0;
+const unsigned long voiceInterval = 3000; // Wait 3 seconds between voice alerts
+int lastAlertLevel = 0; // 0=none, 1=caution, 2=warning
 
 // Function prototype so the callback can see it
 void updateHardware(int dist, float sens);
@@ -77,6 +84,12 @@ void setup() {
                                            BLECharacteristic::PROPERTY_WRITE
                                          );
   pRxCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
+
+  pTxCharacteristic = pService->createCharacteristic(
+                      CHARACTERISTIC_UUID_TX,
+                      BLECharacteristic::PROPERTY_NOTIFY
+                    );
+  pTxCharacteristic->addDescriptor(new BLE2902());
 
   pService->start();
   BLEDevice::getAdvertising()->addServiceUUID(SERVICE_UUID);
@@ -139,5 +152,30 @@ void updateHardware(int dist, float sens) {
     digitalWrite(yellowLED, HIGH); 
     digitalWrite(greenLED, HIGH);
     tone(buzzer, 1200, 60);
+  }
+
+  int currentAlertLevel = 0;
+  String message = "";
+
+  if (dist < close) {
+    currentAlertLevel = 2;
+    message = "Warning: Obstacle very close!";
+  } else if (dist < med) {
+    currentAlertLevel = 1;
+    message = "Caution: Object ahead";
+  }
+
+  // Only notify if:
+  // 1. A device is connected
+  // 2. The alert level changed OR enough time has passed (cooldown)
+  if (deviceConnected && currentAlertLevel > 0) {
+    if (currentAlertLevel != lastAlertLevel || (millis() - lastVoiceNotifyTime > voiceInterval)) {
+      pTxCharacteristic->setValue(message.c_str());
+      pTxCharacteristic->notify();
+      lastVoiceNotifyTime = millis();
+      lastAlertLevel = currentAlertLevel;
+    }
+  } else if (currentAlertLevel == 0) {
+    lastAlertLevel = 0; // Reset when clear
   }
 }

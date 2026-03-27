@@ -3,179 +3,284 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
 
 // --- BLE CONFIG ---
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
-#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E" 
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
 BLECharacteristic *pTxCharacteristic;
 
 // --- PERIPHERAL PINS ---
-const int greenLED = 8;
+const int greenLED  = 8;
 const int yellowLED = 7;
-const int redLED = 15;
-const int buzzer = 16;
-const int potPin = 4; 
+const int redLED    = 15;
+const int buzzer    = 16;
+const int potPin    = 4;
 
-// --- VARIABLES ---
+// --- STATE ---
 BLEServer *pServer = NULL;
-bool deviceConnected = false;
+bool deviceConnected    = false;
 bool oldDeviceConnected = false;
 
-// We store the distance received from the other ESP32 here
-int receivedDistance = 999; 
+// FIX: Use a mutex to safely share data between BLE callback (Core 1) and postTask (Core 0)
+portMUX_TYPE dataMux = portMUX_INITIALIZER_UNLOCKED;
+int  sharedDistance  = 999;
+unsigned long sharedLastDataTime = 0;
+
+// Local copies used in loop() and postTask — updated under mutex
+int  receivedDistance = 999;
 unsigned long lastDataTime = 0;
-const unsigned long timeoutInterval = 1000; // 1 second timeout
+
+// Shared sensitivity so postTask uses the same scaled thresholds as updateHardware()
+float sharedSensitivity = 1.0f;
 
 unsigned long lastVoiceNotifyTime = 0;
-const unsigned long voiceInterval = 3000; // Wait 3 seconds between voice alerts
-int lastAlertLevel = 0; // 0=none, 1=caution, 2=warning
+int lastAlertLevel = 0;
 
-// Function prototype so the callback can see it
+// --- WIFI CONFIG ---
+const char* ssid      = "";
+const char* password  = "";
+const char* serverUrl = "";
+
+// --- FUNCTION PROTOTYPES ---
 void updateHardware(int dist, float sens);
+void postTask(void* parameter);
 
-// BLE Callbacks
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-      Serial.println("[!] Client is connected");
-    };
-    void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-      Serial.println("[?] Client disconnected");
-    }
+// --- BLE CALLBACKS ---
+class MyServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) {
+    deviceConnected = true;
+    Serial.println("[!] Client connected");
+  }
+  void onDisconnect(BLEServer* pServer) {
+    deviceConnected = false;
+    Serial.println("[?] Client disconnected");
+  }
 };
 
-class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-      String rxValue = pCharacteristic->getValue();
-      if (rxValue.length() > 0) {
-        // Convert the string received from the other ESP32 to an integer
-        receivedDistance = rxValue.toInt();
-        lastDataTime = millis(); 
-        
-        Serial.print("-> Client says distance is: ");
-        Serial.println(receivedDistance);
-      }
+class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic* pCharacteristic) {
+    String rxValue = pCharacteristic->getValue();
+    if (rxValue.length() > 0) {
+      int dist = rxValue.toInt();
+      // FIX: Write shared data under mutex
+      portENTER_CRITICAL(&dataMux);
+      sharedDistance     = dist;
+      sharedLastDataTime = millis();
+      portEXIT_CRITICAL(&dataMux);
+      Serial.print("-> Distance received: ");
+      Serial.println(dist);
     }
+  }
 };
 
 void setup() {
   Serial.begin(115200);
-  unsigned long start = millis();
-  while(!Serial && millis() - start < 3000); 
 
-  pinMode(greenLED, OUTPUT);
+  pinMode(greenLED,  OUTPUT);
   pinMode(yellowLED, OUTPUT);
-  pinMode(redLED, OUTPUT);
-  pinMode(buzzer, OUTPUT);
+  pinMode(redLED,    OUTPUT);
+  pinMode(buzzer,    OUTPUT);
 
-  Serial.println("\n--- S3 Receiver System Starting ---");
+  // Safe startup state
+  digitalWrite(greenLED,  HIGH); // Green = waiting
+  digitalWrite(yellowLED, LOW);
+  digitalWrite(redLED,    LOW);
+  noTone(buzzer);
 
+  // --- WiFi --- FIX: Set mode FIRST before begin, avoids "cannot set config" error
+  // WiFi and BLE share the RF module on ESP32-S3; mode must be set before BLE init
+  WiFi.mode(WIFI_STA);
+  delay(100);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  int wifiRetries = 0;
+  while (WiFi.status() != WL_CONNECTED && wifiRetries < 20) {
+    delay(500);
+    Serial.print(".");
+    wifiRetries++;
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected: " + WiFi.localIP().toString());
+  } else {
+    Serial.println("\nWiFi FAILED — continuing without it.");
+  }
+
+  // FIX: Start POST task on Core 0 AFTER WiFi is up
+  xTaskCreatePinnedToCore(
+    postTask,
+    "PostTask",
+    8192,
+    NULL,
+    1,
+    NULL,
+    0  // Core 0
+  );
+
+  // --- BLE on Core 1 (default) ---
   BLEDevice::init("ESP32-S3-Server");
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
-  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLEService* pService = pServer->createService(SERVICE_UUID);
 
-  BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(
-                                           CHARACTERISTIC_UUID_RX,
-                                           BLECharacteristic::PROPERTY_WRITE
-                                         );
+  BLECharacteristic* pRxCharacteristic = pService->createCharacteristic(
+    CHARACTERISTIC_UUID_RX,
+    BLECharacteristic::PROPERTY_WRITE
+  );
   pRxCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
 
   pTxCharacteristic = pService->createCharacteristic(
-                      CHARACTERISTIC_UUID_TX,
-                      BLECharacteristic::PROPERTY_NOTIFY
-                    );
+    CHARACTERISTIC_UUID_TX,
+    BLECharacteristic::PROPERTY_NOTIFY
+  );
   pTxCharacteristic->addDescriptor(new BLE2902());
 
   pService->start();
   BLEDevice::getAdvertising()->addServiceUUID(SERVICE_UUID);
   BLEDevice::startAdvertising();
-  
-  Serial.println("--- Waiting for Client Data ---");
+
+  Serial.println("--- BLE Advertising. Waiting for client ---");
 }
 
 void loop() {
-  // 1. Read local Potentiometer for sensitivity
-  int potValue = analogRead(potPin);
-  float sensitivity = map(potValue, 0, 4095, 50, 200) / 100.0;
+  static unsigned long lastLoopTime = 0;
+  unsigned long now = millis();
+  if (now - lastLoopTime < 10) return;
+  lastLoopTime = now;
 
-  // 2. Check if we haven't heard from the client in a while (Timeout)
-  if (millis() - lastDataTime > timeoutInterval) {
-    // Default state: Green LED Only
-    digitalWrite(greenLED, HIGH);
+  // FIX: Safely read shared data into local copies
+  portENTER_CRITICAL(&dataMux);
+  receivedDistance = sharedDistance;
+  lastDataTime     = sharedLastDataTime;
+  portEXIT_CRITICAL(&dataMux);
+
+  // Potentiometer sensitivity (0.5 – 2.0)
+  // FIX: map() does integer math internally — cast to float BEFORE dividing
+  int potValue = analogRead(potPin);
+  float sensitivity = (float)map(potValue, 0, 4095, 50, 200) / 100.0f;
+  sharedSensitivity = sensitivity; // share with postTask
+
+  // FIX: Timeout = no data for >1 second → idle state
+  if (now - lastDataTime > 1000) {
+    digitalWrite(greenLED,  HIGH);
     digitalWrite(yellowLED, LOW);
-    digitalWrite(redLED, LOW);
+    digitalWrite(redLED,    LOW);
     noTone(buzzer);
   } else {
-    // We have fresh data! Update LEDs and Buzzer
     updateHardware(receivedDistance, sensitivity);
   }
 
-  // Handle Bluetooth reconnection
+  // BLE reconnection
   if (!deviceConnected && oldDeviceConnected) {
-    delay(500); 
+    delay(500);
     pServer->startAdvertising();
-    Serial.println("--- Restarting Advertising ---");
+    Serial.println("Restarted advertising.");
     oldDeviceConnected = deviceConnected;
   }
   if (deviceConnected && !oldDeviceConnected) {
     oldDeviceConnected = deviceConnected;
   }
-
-  delay(50); 
 }
 
+// --- Hardware logic ---
 void updateHardware(int dist, float sens) {
-  int far = 100 * sens;
-  int med = 50 * sens;
-  int close = 20 * sens;
+  int farThresh   = (int)(100 * sens);
+  int medThresh   = (int)(50  * sens);
+  int closeThresh = (int)(20  * sens);
 
-  digitalWrite(greenLED, LOW);
+  digitalWrite(greenLED,  LOW);
   digitalWrite(yellowLED, LOW);
-  digitalWrite(redLED, LOW);
+  digitalWrite(redLED,    LOW);
 
-  if (dist > far) {
+  // FIX: tone() has no volume control — perceived loudness is shaped by
+  // frequency + pulse duration + how often it fires.
+  // Yellow: low freq, very short blip, fires rarely = sounds much softer
+  // Red: medium freq, normal pulse
+  // Critical: high freq, long pulse = clearly loudest
+  static unsigned long lastYellowBeep = 0;
+  unsigned long nowBeep = millis();
+
+  if (dist > farThresh) {
     digitalWrite(greenLED, HIGH);
     noTone(buzzer);
-  } else if (dist > med) {
+  } else if (dist > medThresh) {
     digitalWrite(yellowLED, HIGH);
-    tone(buzzer, 500, 30);
-  } else if (dist > close) {
+    if (nowBeep - lastYellowBeep > 600) { // only beep every 600ms
+      tone(buzzer, 400, 8);               // 400Hz, 8ms = very soft blip
+      lastYellowBeep = nowBeep;
+    }
+  } else if (dist > closeThresh) {
     digitalWrite(redLED, HIGH);
     tone(buzzer, 800, 30);
   } else {
-    digitalWrite(redLED, HIGH); 
-    digitalWrite(yellowLED, HIGH); 
-    digitalWrite(greenLED, HIGH);
+    // Critical — all LEDs + fast tone
+    digitalWrite(greenLED,  HIGH);
+    digitalWrite(yellowLED, HIGH);
+    digitalWrite(redLED,    HIGH);
     tone(buzzer, 1200, 60);
   }
 
-  int currentAlertLevel = 0;
+  int    currentAlertLevel = 0;
   String message = "";
 
-  if (dist < close) {
-    currentAlertLevel = 2;
-    message = "Warning: Obstacle very close!";
-  } else if (dist < med) {
-    currentAlertLevel = 1;
-    message = "Caution: Object ahead";
-  }
+  if (dist <= closeThresh)      { currentAlertLevel = 2; message = "Warning!"; }
+  else if (dist <= medThresh)   { currentAlertLevel = 1; message = "Caution!"; }
 
-  // Only notify if:
-  // 1. A device is connected
-  // 2. The alert level changed OR enough time has passed (cooldown)
   if (deviceConnected && currentAlertLevel > 0) {
-    if (currentAlertLevel != lastAlertLevel || (millis() - lastVoiceNotifyTime > voiceInterval)) {
+    unsigned long now = millis();
+    if (currentAlertLevel != lastAlertLevel || (now - lastVoiceNotifyTime > 3000)) {
       pTxCharacteristic->setValue(message.c_str());
       pTxCharacteristic->notify();
-      lastVoiceNotifyTime = millis();
+      lastVoiceNotifyTime = now;
       lastAlertLevel = currentAlertLevel;
     }
-  } else if (currentAlertLevel == 0) {
-    lastAlertLevel = 0; // Reset when clear
+  }
+  if (currentAlertLevel == 0) lastAlertLevel = 0;
+}
+
+// --- HTTP POST task (Core 0) ---
+void postTask(void* parameter) {
+  for (;;) {
+    // FIX: Read shared data safely inside the task too
+    portENTER_CRITICAL(&dataMux);
+    int  dist     = sharedDistance;
+    unsigned long ldt = sharedLastDataTime;
+    portEXIT_CRITICAL(&dataMux);
+
+    if (WiFi.status() == WL_CONNECTED && (millis() - ldt) <= 2000) {
+      HTTPClient http;
+      http.begin(serverUrl);
+      http.addHeader("Content-Type", "application/json");
+      http.setTimeout(3000);
+
+      // Use the same sensitivity-scaled thresholds as updateHardware()
+      float sens = sharedSensitivity;
+      int farThresh   = (int)(100 * sens);
+      int medThresh   = (int)(50  * sens);
+      int closeThresh = (int)(20  * sens);
+
+      String alert;
+      if (dist <= closeThresh)     alert = "WARNING! " + String(dist) + "cm ahead - Stop immediately!";
+      else if (dist <= medThresh)  alert = "Caution! " + String(dist) + "cm ahead";
+      else if (dist <= farThresh)  alert = "Approaching object, " + String(dist) + "cm ahead";
+      else                         alert = "Clear, " + String(dist) + "cm";
+
+      String payload = "{\"distance\":" + String(dist) + ",\"alert\":\"" + alert + "\"}";
+      int code = http.POST(payload);
+
+      if (code > 0) {
+        String resp = http.getString();
+        Serial.println("POST " + String(code) + ": " + resp);
+      } else {
+        Serial.println("POST ERROR: " + http.errorToString(code));
+      }
+      http.end();
+    }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }

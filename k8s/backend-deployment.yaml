@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: viktorsirakov08/lifecore-backend:latest
+          image: viktorsirakov08/lifecore-backend:v2
           ports:
             - containerPort: 5000
           env:

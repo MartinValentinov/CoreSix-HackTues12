@@ -20,20 +20,46 @@ bool doConnect = false;
 bool connected = false;
 unsigned long lastSend = 0;
 
+bool scanning = false;                              // track if we are currently scanning
+unsigned long lastConnectionAttempt = 0;            // prevent spamming reconnect attempts
+const unsigned long reconnectInterval = 3000;       // wait 3s between retries
+
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) override {
     if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(BLEUUID(SERVICE_UUID))) {
       Serial.println(">>> S3 Server Found!");
       pServerAddress = new BLEAddress(advertisedDevice.getAddress());
       doConnect = true;
+      scanning = false;                             // mark scan as done
       BLEDevice::getScan()->stop();
     }
   }
 };
 
+// Detect when connection drops
+class MyClientCallbacks : public BLEClientCallbacks {
+  void onConnect(BLEClient* pClient) {
+    Serial.println("[!] Connected to server");
+  }
+  void onDisconnect(BLEClient* pClient) {
+    connected = false;                              // flip flag so loop() knows to reconnect
+    Serial.println("[?] Disconnected from server");
+  }
+};
+
 bool connectToServer() {
   Serial.println("Attempting to connect...");
+
+  // Clean up old client if it exists, cleanup before reconnecting
+  if (pClient != nullptr) {
+    pClient->disconnect();
+    delete pClient;
+    pClient = nullptr;
+  }
+
   pClient = BLEDevice::createClient();
+  pClient->setClientCallbacks(new MyClientCallbacks());   // attach disconnect callback
+
   if (!pClient->connect(*pServerAddress)) return false;
   
   BLERemoteService* pRemoteService = pClient->getService(BLEUUID(SERVICE_UUID));
@@ -46,6 +72,15 @@ bool connectToServer() {
   return true;
 }
 
+void startScan() {                        // separated  into a reusable function
+  if (!scanning) {
+    Serial.println("--- Scanning for server ---");
+    scanning = true;
+    doConnect = false;
+    BLEDevice::getScan()->start(5, false);
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   pinMode(trigPin, OUTPUT);
@@ -56,16 +91,31 @@ void setup() {
   BLEScan* pBLEScan = BLEDevice::getScan();
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   pBLEScan->setActiveScan(true);
-  pBLEScan->start(5, false);
+  
+  startScan();                            // start initial scan using the reusable function
 }
 
 void loop() {
+  // Step 1: If scan found the server, connect to it
   if (doConnect) {
     if (connectToServer()) Serial.println("Connected Successfully!");
-    else Serial.println("Failed to connect.");
+    else {
+        Serial.println("Failed to connect, retrying...");
+        lastConnectionAttempt = millis();   // NEW: record failed attempt time
+    }    
+    
     doConnect = false;
   }
 
+  // Step 2: If not connected and not scanning, decide what to do, reconnection logic
+  if (!connected && !scanning) {
+    if (millis() - lastConnectionAttempt > reconnectInterval) {
+      Serial.println("Not connected — rescanning...");
+      startScan();
+    }
+  }
+
+  // Step 3: Measure and send sensor data
   // --- SENSOR TEST (Always runs) ---
   if (millis() - lastSend > 200) { 
     lastSend = millis();

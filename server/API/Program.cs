@@ -51,12 +51,39 @@ var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get
         "https://lifecoresu.netlify.app"
     };
 
+var allowedOriginSet = new HashSet<string>(allowedOrigins, StringComparer.OrdinalIgnoreCase);
+
+bool IsAllowedOrigin(string? origin)
+{
+    if (string.IsNullOrWhiteSpace(origin))
+    {
+        return false;
+    }
+
+    if (allowedOriginSet.Contains(origin))
+    {
+        return true;
+    }
+
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+    {
+        return false;
+    }
+
+    if (uri.Scheme == Uri.UriSchemeHttp && uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    return uri.Scheme == Uri.UriSchemeHttps && uri.Host.EndsWith(".netlify.app", StringComparison.OrdinalIgnoreCase);
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendPolicy", policy =>
     {
         policy
-            .WithOrigins(allowedOrigins)
+            .SetIsOriginAllowed(IsAllowedOrigin)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();

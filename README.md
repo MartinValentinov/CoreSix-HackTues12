@@ -1,15 +1,19 @@
 # LifeCore
 ### HackTues 12 — Team CoreSix
 
-> **"LimitLess"** — A wearable blind navigation assistant that uses ultrasonic sensing and real-time feedback to help visually impaired people navigate their surroundings independently.
+> **"LimitLess"** — A wearable blind navigation assistant that uses ultrasonic sensing and real-time feedback to help visually impaired people navigate their surroundings independently. Paired with a web dashboard for text-to-speech audio feedback and a community hub where users can share tips and experiences.
 
 ---
 
 ## The Idea
 
-LifeCore is a two-part wearable system designed for visually impaired users. A small sensor unit worn on glasses, a headband or another wearable continuously detects obstacles and communicates distance to the user via audio (and visual for the judges) feedback on a communication unit that is on/in a belt/pocket. 
+LifeCore is a two-part wearable system designed for visually impaired users. A small sensor unit worn on glasses, a headband or another wearable continuously detects obstacles and communicates distance to the user via audio feedback, with LED indicators providing an additional visual reference, on a communication unit that is on a belt/pocket. 
 
-# **Write more about web app**
+There are 4 distance zones (Safe, Caution, Close, Critical) that trigger different LED colors and buzzer patterns. The distance thresholds can be adjusted in real-time using a potentiometer for sensitivity control. The sensor unit and communication unit communicate wirelessly via Bluetooth Low Energy (BLE).
+
+The communication unit also connects to a backend server (Raspberry Pi) for user authentication and text-to-speech conversion, providing users with detailed spoken feedback about their surroundings.
+
+The web app dashboard also serves as a community hub for users (both visually impaired and sighted) to share tips, stories and other information about their disability.
 
 Built for **Hack TUES 12** under the theme **"Code to Care"**, subtopic **"LimitLess"**.
 
@@ -31,9 +35,10 @@ Built for **Hack TUES 12** under the theme **"Code to Care"**, subtopic **"Limit
                                                 ▼
                                       [.NET Backend Server]
                                       ┌──────────────────────┐
+                                      │ Raspberry Pi         │
                                       │ Login / Register     │
-                                      │                      │
-                                      │                      │
+                                      │ Dashboard            │
+                                      │ Text-to-speech       │
                                       └──────────────────────┘
 ```
 
@@ -61,7 +66,7 @@ CoreSix-HackTues12/
 ├── LifeCore_v4/        # Hardware v4 — wireless, two ESP32s communicating via BLE
 │
 ├── frontend/           # Web dashboard
-├── server/             # .NET backend — auth, API, event logging (C#)
+├── server/             # .NET backend — auth, API (C#)
 ├── k8s/                # Kubernetes deployment manifests
 │
 ├── docker-compose.yaml # Local development setup

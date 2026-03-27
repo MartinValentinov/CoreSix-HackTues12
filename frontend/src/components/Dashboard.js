@@ -152,13 +152,8 @@ export default function Dashboard({ onLogout }) {
   alertConnection.on("ReceiveAlert", (message) => {
     setDistanceAlert(message);
 
-    if (!message.startsWith("Clear")) {
-      toggleSpeech(true);
-    }
-
     // Text-to-speech
-    if ("speechSynthesis" in window && speechEnabledRef.current) {
-      if (speechSynthesis.speaking) speechSynthesis.cancel();
+    if ("speechSynthesis" in window && speechEnabledRef.current && !message.startsWith("Clear")) {      if (speechSynthesis.speaking) speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(message);
 
@@ -578,7 +573,7 @@ export default function Dashboard({ onLogout }) {
         <span className="status-label">Sensor Status:</span>
         <span className="status-message">{distanceAlert}</span>
         {!speechUnlocked ? (
-          <button className="action-btn" onClick={() => {
+            <button className="action-btn" style={{ marginLeft: "auto" }} onClick={() => {
             const u = new SpeechSynthesisUtterance("");
             speechSynthesis.speak(u);
             setSpeechUnlocked(true);
@@ -588,8 +583,8 @@ export default function Dashboard({ onLogout }) {
         ) : (
           <button
             className="action-btn"
+            style={{ marginLeft: "auto" }}
             onClick={() => toggleSpeech(!speechEnabled)}
-            disabled={distanceAlert.startsWith("Clear")}
           >
             {speechEnabled ? "🔇 Stop Voice" : "🔊 Resume Voice"}
           </button>

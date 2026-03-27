@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Core.Services;
+using Data.Entities;
 
 namespace API.Hubs
 {
@@ -17,8 +18,25 @@ namespace API.Hubs
         public async Task SendMessage(string message)
         {
             var username = Context.User?.Identity?.Name ?? "Unknown";
-            await _chatService.SaveMessageAsync(username, message);
-            await Clients.All.SendAsync("ReceiveMessage", username, message);
+            var saved = await _chatService.SaveMessageAsync(username, message);
+            await Clients.All.SendAsync("ReceiveMessage", saved);
+        }
+
+        public async Task<List<ChatMessage>> GetRecentMessages()
+        {
+            return await _chatService.GetMessages();
+        }
+
+        public async Task AddComment(string messageId, string commentText)
+        {
+            var username = Context.User?.Identity?.Name ?? "Unknown";
+            var comment = await _chatService.AddCommentAsync(messageId, username, commentText);
+
+            await Clients.All.SendAsync("ReceiveComment", new
+            {
+                MessageId = messageId,
+                Comment = comment
+            });
         }
     }
 }

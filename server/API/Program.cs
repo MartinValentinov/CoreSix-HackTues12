@@ -11,7 +11,6 @@ using DotNetEnv;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load environment variables from stable, content-root-based locations.
 var contentRoot = builder.Environment.ContentRootPath;
 var envCandidates = new[]
 {
@@ -59,6 +58,7 @@ var app = builder.Build();
 
 using var scope = app.Services.CreateScope();
 var dbContext = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
+await dbContext.EnsureIndexesAsync();
 
 app.UseMiddleware<LoggingMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();

@@ -114,5 +114,24 @@ namespace Data.Context
 
         public IMongoCollection<User> Users =>
             _database.GetCollection<User>("Users");
+
+        public async Task EnsureIndexesAsync()
+        {
+            var messageIndexModels = new[]
+            {
+                new CreateIndexModel<ChatMessage>(
+                    Builders<ChatMessage>.IndexKeys.Descending(m => m.Timestamp)),
+                new CreateIndexModel<ChatMessage>(
+                    Builders<ChatMessage>.IndexKeys.Ascending(m => m.UserId))
+            };
+
+            await Messages.Indexes.CreateManyAsync(messageIndexModels);
+
+            var userIndex = new CreateIndexModel<User>(
+                Builders<User>.IndexKeys.Ascending(u => u.Username),
+                new CreateIndexOptions { Unique = true });
+
+            await Users.Indexes.CreateOneAsync(userIndex);
+        }
     }
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/Login";
 import Register from "./components/Register";
@@ -6,6 +6,15 @@ import Dashboard from "./components/Dashboard";
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem("token"));
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setToken(null);
+    };
+
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
+  }, []);
 
   const handleAuthSuccess = (newToken) => {
     setToken(newToken);

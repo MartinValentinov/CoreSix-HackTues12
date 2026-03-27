@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useContext, useRef } from "react";
 import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
-import api from "../api/api";
+import api, { API_ORIGIN } from "../api/api";
 import { useNavigate } from "react-router-dom";
 import { SidebarContext } from "../context/SidebarContext";
 
@@ -131,7 +131,7 @@ export default function Dashboard({ onLogout }) {
    if (isAuthLoading || !user || alertConnectionRef.current) return;
 
    const alertConnection = new HubConnectionBuilder()
-     .withUrl("http://10.35.86.8:5005/alertHub", {
+     .withUrl(`${API_ORIGIN}/alerts`, {
        accessTokenFactory: () => localStorage.getItem("token") || "",
       })
       .withAutomaticReconnect()
@@ -233,7 +233,7 @@ export default function Dashboard({ onLogout }) {
     if (isAuthLoading || !user || connectionRef.current) return;
 
   const connection = new HubConnectionBuilder()
-    .withUrl("/chat", {
+    .withUrl(`${API_ORIGIN}/chat`, {
       accessTokenFactory: () => localStorage.getItem("token") || "",
     })
     .withAutomaticReconnect()

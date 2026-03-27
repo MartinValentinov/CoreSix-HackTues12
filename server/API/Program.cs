@@ -43,14 +43,23 @@ builder.Services.AddSingleton<ITokenService, TokenService>();
 builder.Services.AddJwtAuth(builder.Configuration);
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? builder.Configuration["CORS_ALLOWED_ORIGINS"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+    ?? new[]
+    {
+        "http://localhost:3000",
+        "https://lifecoresu.netlify.app"
+    };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendPolicy", policy =>
     {
         policy
-            .WithOrigins("http://localhost:3000")
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -69,6 +78,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<ChatHub>("/chat");
+app.MapHub<AlertHub>("/alerts");
 app.Run();
 
 static Dictionary<string, string?> ParseDotEnv(string filePath)

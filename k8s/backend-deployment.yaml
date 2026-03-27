@@ -19,11 +19,16 @@ spec:
           ports:
             - containerPort: 5000
           env:
-            - name: JWT_KEY
+            - name: Jwt__Key
               valueFrom:
                 secretKeyRef:
                   name: backend-secret
                   key: jwt
+            - name: ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: connection-string
           envFrom:
             - configMapRef:
                 name: backend-config
